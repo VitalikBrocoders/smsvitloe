@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Light Schedule Clocks</title>
+    <style>
+        textarea {
+            width: 100%;
+            height: 150px;
+            resize: both;
+        }
+        canvas {
+            margin: 20px;
+        }
+        .clock-container {
+            display: flex;
+            align-items: center;
+            flex-direction: row;
+            margin: 20px 10px;
+            padding: 0.5em;
+            border-top: 2px dashed silver;
+        }
+        .off-times {
+            margin-right: 20px;
+        }
+        .shift-title {
+            font-family: sans-serif;
+            margin: 0;
+        }
+        .debug-info {
+            margin-left: 20px;
+            font-size: 10px;
+        }
+        .status-list {
+            display: flex;
+            flex-direction: row;
+            margin-left: 20px;
+            font-size: 14px;
+        }
+        .status-column {
+            display: flex;
+            flex-direction: column;
+            margin-right: 10px;
+        }
+        .status-item {
+            padding: 5px;
+            margin: 2px 0;
+            border-radius: 4px;
+        }
+        .shift-buttons {
+            margin-bottom: 20px;
+        }
+        .shift-buttons button {
+            margin-right: 5px;
+            margin-top: 5px;
+            padding: 0.4em 1.5em;
+            border: 1px solid black;
+            border-radius: 5px;
+        }
+        @media (max-width: 600px) {
+            .clock-container {
+                flex-direction: column;
+            }
+            .off-times {
+                margin-bottom: 10px;
+            }
+            .status-list {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+<textarea id="inputText" placeholder="N1 черга: 00:00-02:00, 06:00-08:00, 12:00-14:00, 18:00-20:00, 22:00-24:00
+N2 черга: 02:00-04:00, 08:00-10:00, 14:00-16:00, 20:00-22:00
+">
+1 черга: 00:00-02:00, 06:00-08:00, 12:00-14:00, 18:00-20:00, 22:00-24:00
+2 черга: 02:00-04:00, 08:00-10:00, 14:00-16:00, 20:00-22:00
+3 черга: 02:00-06:00, 10:00-12:00, 16:00-18:00, 22:00-24:00
+4 черга: 00:00-02:00, 04:00-08:00, 12:00-14:00, 18:00-20:00
+5 черга: 02:00-04:00, 08:00-10:00, 14:00-16:00, 19:00-22:00
+6 черга: 04:00-06:00, 10:00-12:00, 16:00-18:00, 20:00-24:00</textarea>
+<div class="shift-buttons" id="shiftButtons"></div>
+<div id="clocksContainer"></div>
+
+<script>
+    const parseSchedule = (text) => {
+        const lines = text.trim().split('\n');
+        const schedules = {};
+
+        lines.forEach(line => {
+            const [shift, times] = line.split(': ');
+            const shiftNumber = shift.split(' ')[0];
+            const timeRanges = times.split(', ');
+            const schedule = Array(24).fill(true);
+
+            timeRanges.forEach(range => {
+                const [start, end] = range.split('-').map(time => parseInt(time.split(':')[0]));
+                for (let hour = start; hour < end; hour++) {
+                    schedule[hour] = false;
+                }
+            });
+
+            schedules[shiftNumber] = schedule.reduce((obj, lightOn, hour) => {
+                obj[hour] = lightOn;
+                return obj;
+            }, {});
+        });
+
+        return schedules;
+    };
+
+    const formatOffTimes = (schedule, shiftNumber) => {
+        let offTimes = [`<h4 class="shift-title">Черга ${shiftNumber}</h4>`];
+        return offTimes.join('<br>');
+    };
+
+    const formatStatusList = (schedule) => {
+        let statusList = '<div class="status-column">';
+        for (let hour = 0; hour < 12; hour++) {
+            const backgroundColor = schedule[hour] ? 'lightgreen' : 'lightcoral';
+            const textColor = schedule[hour] ? 'darkgreen' : 'darkred';
+            statusList += `<div class="status-item" style="background-color: ${backgroundColor}; color: ${textColor};">${String(hour).padStart(2, '0')}:00 - ${schedule[hour] ? 'ON' : 'OFF'}</div>`;
+        }
+        statusList += '</div><div class="status-column">';
+        for (let hour = 12; hour < 24; hour++) {
+            const backgroundColor = schedule[hour] ? 'lightgreen' : 'lightcoral';
+            const textColor = schedule[hour] ? 'darkgreen' : 'darkred';
+            statusList += `<div class="status-item" style="background-color: ${backgroundColor}; color: ${textColor};">${String(hour).padStart(2, '0')}:00 - ${schedule[hour] ? 'ON' : 'OFF'}</div>`;
+        }
+        statusList += '</div>';
+        return statusList;
+    };
+
+    const drawClock = (canvasId, schedule, startHour) => {
+        const canvas = document.getElementById(canvasId);
+        const ctx = canvas.getContext('2d');
+        const radius = canvas.width / 2 - 40; // Уменьшение радиуса для выноса меток
+        const centerX = radius + 40;
+        const centerY = radius + 40;
+
+        ctx.translate(centerX, centerY);
+
+        for (let i = 0; i < 12; i++) {
+            const startAngle = (i * 2 * Math.PI) / 12 - Math.PI / 2;
+            const endAngle = ((i + 1) * 2 * Math.PI) / 12 - Math.PI / 2;
+            const hour = (startHour + i) % 24;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, radius - ((hour >= 6 && hour < 18) ? 0 : 4), startAngle, endAngle);
+            ctx.closePath();
+            ctx.fillStyle = schedule[hour] ? 'lightgreen' : 'darkred';
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        ctx.font = '12px Arial';
+        ctx.fillStyle = 'black';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        for (let i = 0; i < 12; i++) {
+            const hour = (startHour + i) % 24;
+            const angle = (i * 2 * Math.PI) / 12 - Math.PI / 2;
+            const x = (radius + 18) * Math.cos(angle);
+            const y = (radius + 18) * Math.sin(angle);
+            if (i % 3 === 0) {
+                ctx.font = 'bold 22px Arial';
+            } else {
+                ctx.font = '12px Arial';
+            }
+            ctx.fillText(`${hour}`, x, y);
+        }
+
+        ctx.translate(-centerX, -centerY);
+    };
+
+    const createClockForShift = (shift, schedules) => {
+        const clocksContainer = document.getElementById('clocksContainer');
+        clocksContainer.innerHTML = '';
+
+        const container = document.createElement('div');
+        container.className = 'clock-container';
+        const offTimesDiv = document.createElement('div');
+        offTimesDiv.className = 'off-times';
+        offTimesDiv.innerHTML = formatOffTimes(schedules[shift], shift);
+        const statusListDiv = document.createElement('div');
+        statusListDiv.className = 'status-list';
+        statusListDiv.innerHTML = formatStatusList(schedules[shift]);
+        const canvas1 = document.createElement('canvas');
+        canvas1.id = `clock-${shift}-1`;
+        canvas1.width = 300;
+        canvas1.height = 300;
+        const canvas2 = document.createElement('canvas');
+        canvas2.id = `clock-${shift}-2`;
+        canvas2.width = 300;
+        canvas2.height = 300;
+        container.appendChild(offTimesDiv);
+        container.appendChild(statusListDiv);
+        container.appendChild(canvas1);
+        container.appendChild(canvas2);
+        clocksContainer.appendChild(container);
+
+        drawClock(canvas1.id, schedules[shift], 0);
+        drawClock(canvas2.id, schedules[shift], 12);
+    };
+
+    const createAllClocks = (schedules) => {
+        const clocksContainer = document.getElementById('clocksContainer');
+        clocksContainer.innerHTML = '';
+
+        Object.keys(schedules).forEach(shift => {
+            const container = document.createElement('div');
+            container.className = 'clock-container';
+            const offTimesDiv = document.createElement('div');
+            offTimesDiv.className = 'off-times';
+            offTimesDiv.innerHTML = formatOffTimes(schedules[shift], shift);
+            const statusListDiv = document.createElement('div');
+            statusListDiv.className = 'status-list';
+            statusListDiv.innerHTML = formatStatusList(schedules[shift]);
+            const canvas1 = document.createElement('canvas');
+            canvas1.id = `clock-${shift}-1`;
+            canvas1.width = 300;
+            canvas1.height = 300;
+            const canvas2 = document.createElement('canvas');
+            canvas2.id = `clock-${shift}-2`;
+            canvas2.width = 300;
+            canvas2.height = 300;
+            container.appendChild(offTimesDiv);
+            container.appendChild(statusListDiv);
+            container.appendChild(canvas1);
+            container.appendChild(canvas2);
+            clocksContainer.appendChild(container);
+
+            drawClock(canvas1.id, schedules[shift], 0);
+            drawClock(canvas2.id, schedules[shift], 12);
+        });
+    };
+
+    const createShiftButtons = (schedules, selectedShift) => {
+        const shiftButtons = document.getElementById('shiftButtons');
+        shiftButtons.innerHTML = '';
+
+        const allButton = document.createElement('button');
+        allButton.innerText = 'ALL';
+        allButton.onclick = () => {
+            createAllClocks(schedules);
+            currentShift = 'ALL';
+        };
+        shiftButtons.appendChild(allButton);
+
+        Object.keys(schedules).forEach(shift => {
+            const button = document.createElement('button');
+            button.innerText = `Черга ${shift}`;
+            button.onclick = () => {
+                createClockForShift(shift, schedules);
+                currentShift = shift;
+            };
+            shiftButtons.appendChild(button);
+        });
+
+        if (selectedShift) {
+            if (selectedShift === 'ALL') {
+                createAllClocks(schedules);
+            } else {
+                createClockForShift(selectedShift, schedules);
+            }
+        }
+    };
+
+    let currentShift = null;
+
+    const init = () => {
+        const inputText = document.getElementById('inputText').value;
+        if (inputText.trim() === '') {
+            document.getElementById('shiftButtons').innerHTML = '';
+            document.getElementById('clocksContainer').innerHTML = '';
+            return;
+        }
+        const schedules = parseSchedule(inputText);
+        createShiftButtons(schedules, currentShift);
+    };
+
+    document.addEventListener('DOMContentLoaded', init);
+    document.getElementById('inputText').addEventListener('input', init);
+</script>
+</body>
+</html>
