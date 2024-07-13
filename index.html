@@ -58,6 +58,13 @@
             border: 1px solid black;
             border-radius: 5px;
         }
+        .save-link {
+            margin-top: 10px;
+            padding: 0.4em 1.5em;
+            border: 1px solid black;
+            border-radius: 5px;
+            cursor: pointer;
+        }
         @media (max-width: 600px) {
             .clock-container {
                 flex-direction: column;
@@ -74,15 +81,11 @@
 <body>
 <textarea id="inputText" placeholder="N1 черга: 00:00-02:00, 06:00-08:00, 12:00-14:00, 18:00-20:00, 22:00-24:00
 N2 черга: 02:00-04:00, 08:00-10:00, 14:00-16:00, 20:00-22:00
-">
-1 черга: 00:00-02:00, 06:00-08:00, 12:00-14:00, 18:00-20:00, 22:00-24:00
-2 черга: 02:00-04:00, 08:00-10:00, 14:00-16:00, 20:00-22:00
-3 черга: 02:00-06:00, 10:00-12:00, 16:00-18:00, 22:00-24:00
-4 черга: 00:00-02:00, 04:00-08:00, 12:00-14:00, 18:00-20:00
-5 черга: 02:00-04:00, 08:00-10:00, 14:00-16:00, 19:00-22:00
-6 черга: 04:00-06:00, 10:00-12:00, 16:00-18:00, 20:00-24:00</textarea>
+"></textarea>
+<button class="save-link" onclick="copyLink()">Зберегти посилання</button>
 <div class="shift-buttons" id="shiftButtons"></div>
 <div id="clocksContainer"></div>
+
 
 <script>
     const parseSchedule = (text) => {
@@ -271,16 +274,43 @@ N2 черга: 02:00-04:00, 08:00-10:00, 14:00-16:00, 20:00-22:00
 
     let currentShift = null;
 
-    const init = () => {
-        const inputText = document.getElementById('inputText').value;
-        if (inputText.trim() === '') {
-            document.getElementById('shiftButtons').innerHTML = '';
-            document.getElementById('clocksContainer').innerHTML = '';
-            return;
-        }
-        const schedules = parseSchedule(inputText);
-        createShiftButtons(schedules, currentShift);
+    const getQueryParam = (param) => {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(param);
     };
+
+    const setQueryParam = (param, value) => {
+        const url = new URL(window.location);
+        url.searchParams.set(param, value);
+        window.history.replaceState({}, '', url);
+    };
+
+    const copyLink = () => {
+        const url = window.location.href;
+        navigator.clipboard.writeText(url).then(() => {
+            alert('Посилання скопійовано в буфер обміну');
+        }).catch(err => {
+            alert('Помилка при копіюванні посилання: ', err);
+        });
+    };
+
+const init = () => {
+    const inputText = getQueryParam('schedule') || document.getElementById('inputText').value;
+    document.getElementById('inputText').value = inputText;
+    if (inputText.trim() === '') {
+        document.getElementById('shiftButtons').innerHTML = '';
+        document.getElementById('clocksContainer').innerHTML = '';
+        return;
+    }
+    const schedules = parseSchedule(inputText);
+    createShiftButtons(schedules, currentShift);
+};
+
+document.getElementById('inputText').addEventListener('input', () => {
+    const inputText = document.getElementById('inputText').value;
+    setQueryParam('schedule', inputText);
+    init();
+});
 
     document.addEventListener('DOMContentLoaded', init);
     document.getElementById('inputText').addEventListener('input', init);
